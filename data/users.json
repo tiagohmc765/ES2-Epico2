@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "email": "admin@greenherb.pt",
+    "password_hash": "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121",
+    "role": "ADMIN"
+  },
+  {
+    "id": 2,
+    "email": "tecnico@greenherb.pt",
+    "password_hash": "91c8c18a270e60459c62b1491f4314923e660e8b2030a33bd7f135bbde990c30",
+    "role": "TECNICO"
+  },
+  {
+    "id": 3,
+    "email": "responsavel@greenherb.pt",
+    "password_hash": "de5d7f370ef866345fcac06f9bd38f5f570aa1acbb829d96ec1cbdf8ce8d0b8e",
+    "role": "RESPONSAVEL"
+  }
+]
