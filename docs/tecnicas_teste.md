@@ -132,3 +132,251 @@ Condições atómicas:
 - MCDC-01 vs MCDC-02: C1 varia (F→T), C2=False → resultado muda (aceite→rejeitado) — C1 afeta isoladamente o resultado ✓
 - MCDC-02 vs MCDC-03: C2 varia (F→T), C1=True → resultado muda (rejeitado→aceite) — C2 afeta isoladamente o resultado ✓
 
+---
+
+## Sprint 3
+
+### Particionamento de Equivalência — HerbService
+
+#### `list_herbs` e `get_herb`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-SVC-LIST-V1 | repositório com ervas | lista com todas as ervas devolvida |
+| Válida (limite) | EC-SVC-LIST-V2 | repositório vazio | lista vazia devolvida |
+| Válida | EC-SVC-GET-V1 | `herb_id` existente no repositório | erva correspondente devolvida |
+| Inválida | EC-SVC-GET-I1 | `herb_id` inexistente | `HerbNotFound` lançado |
+
+#### `create_herb`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-SVC-CREATE-V1 | `name` e `family` presentes e não vazios | erva criada e guardada |
+| Inválida | EC-SVC-CREATE-I1 | `name` ausente ou só espaços | `HerbValidationError` |
+| Inválida | EC-SVC-CREATE-I2 | `family` ausente ou só espaços | `HerbValidationError` |
+
+#### `import_from_csv`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-SVC-IMPORT-V1 | CSV com linhas válidas | `save_many` chamado com as válidas; relatório devolvido |
+| Inválida | EC-SVC-IMPORT-I1 | CSV vazio (sem conteúdo) | `EmptyImportFile` propagado |
+| Inválida | EC-SVC-IMPORT-I2 | CSV sem nenhuma linha válida | `save_many` não chamado |
+
+### Particionamento de Equivalência — HerbJsonRepository
+
+| Classe | ID | Método | Condição | Resultado |
+|---|---|---|---|---|
+| Válida | EC-REPO-FIND-V1 | `find_by_id` | id existente no ficheiro | dicionário da erva devolvido |
+| Inválida | EC-REPO-FIND-I1 | `find_by_id` | id inexistente | `None` |
+| Válida | EC-REPO-NAME-V1 | `find_by_name` | nome existente (case-insensitive) | dicionário da erva devolvido |
+| Inválida | EC-REPO-NAME-I1 | `find_by_name` | nome inexistente | `None` |
+| Válida (limite) | EC-REPO-FILE-I1 | `list_all` | ficheiro não existe | lista vazia, sem erro |
+| Inválida | EC-REPO-FILE-I2 | `list_all` | ficheiro existe mas está vazio | lista vazia |
+| Válida | EC-REPO-FILE-V1 | `list_all` | ficheiro com dados | lista com todas as ervas |
+| Válida (limite) | EC-REPO-SAVE-V2 | `save` | repositório vazio | erva recebe `id=1` |
+| Válida | EC-REPO-SAVE-V1 | `save` | repositório com ervas | `id = max(ids) + 1` atribuído |
+| Válida | EC-REPO-MANY-V1 | `save_many` | lista com N ervas | ids sequenciais atribuídos; todas persistidas |
+| Válida (limite) | EC-REPO-MANY-V2 | `save_many` | lista vazia | repositório inalterado |
+
+### Particionamento de Equivalência — PlanService
+
+#### `list_plans` e `get_plan`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-PSVC-LIST-V1 | repositório com planos | lista completa devolvida |
+| Válida (limite) | EC-PSVC-LIST-V2 | repositório vazio | lista vazia devolvida |
+| Válida | EC-PSVC-GET-V1 | `plan_id` existente | plano correspondente devolvido |
+| Inválida | EC-PSVC-GET-I1 | `plan_id` inexistente | `PlanNotFound` lançado |
+
+#### `create_plan`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-PSVC-CREATE-V1 | dados válidos, tipo `regular` | plano validado, guardado e devolvido |
+| Inválida | EC-PSVC-CREATE-I1 | tipo de plano inválido | `PlanValidationError` propagada |
+| Inválida | EC-PSVC-CREATE-I1 | `temp_min` abaixo do mínimo | `PlanValidationError` propagada |
+| Válida | EC-PSVC-CREATE-V2 | plano `pontual` com `authorized_by` | aceite e guardado |
+| Inválida | EC-PSVC-CREATE-I2 | plano `pontual` sem `authorized_by` | `UnauthorizedPontualPlan` lançado |
+
+### Particionamento de Equivalência — PlanJsonRepository
+
+| Classe | ID | Método | Condição | Resultado |
+|---|---|---|---|---|
+| Válida (limite) | EC-PREPO-FILE-I1 | `list_all` | ficheiro não existe | lista vazia, sem erro |
+| Inválida | EC-PREPO-FILE-I2 | `list_all` | ficheiro existe mas vazio | lista vazia |
+| Válida | EC-PREPO-FILE-V1 | `list_all` | ficheiro com dados | lista com todos os planos |
+| Válida | EC-PREPO-FIND-V1 | `find_by_id` | id existente | dicionário do plano devolvido |
+| Inválida | EC-PREPO-FIND-I1 | `find_by_id` | id inexistente | `None` |
+| Válida (limite) | EC-PREPO-SAVE-V2 | `save` | repositório vazio | plano recebe `id=1` |
+| Válida | EC-PREPO-SAVE-V1 | `save` | repositório com dados | `id = max(ids) + 1` atribuído e persistido |
+
+### MC/DC — HerbService.import_from_csv
+
+Decisão em `import_from_csv`:
+
+```python
+validas = [h for h in parsed.herbs if h["status"] == "valid"]
+if validas:
+    self._repository.save_many(validas)
+```
+
+Condições atómicas:
+- **C1**: existem linhas com `status == "valid"` no CSV
+
+| Caso | C1 | Resultado | Teste |
+|---|---|---|---|
+| CSV com válidas | True | `save_many` chamado | TU-HERB-SVC-10 |
+| CSV sem válidas | False | `save_many` não chamado | TU-HERB-SVC-11 |
+
+C1 é a única condição — MC/DC satisfeita com os dois casos (True e False, cada um determinante).
+
+### MC/DC — PlanService.create_plan (autorização pontual)
+
+Decisão em `create_plan` / `validate_plan`:
+
+```python
+if plan_type == "pontual" and authorized_by is None:
+    raise UnauthorizedPontualPlan(...)
+```
+
+Condições atómicas:
+- **C1**: `type == "pontual"`
+- **C2**: `authorized_by is None`
+
+| Caso | C1 | C2 | Resultado | Teste |
+|---|---|---|---|---|
+| Regular sem auth | False | True | aceite | TU-PLAN-SVC-11 |
+| Pontual sem auth | True | True | `UnauthorizedPontualPlan` | TU-PLAN-SVC-09 |
+| Pontual com auth | True | False | aceite | TU-PLAN-SVC-08 |
+| Regular com auth | False | False | aceite | TU-PLAN-SVC-10 |
+
+**Demonstração MC/DC:**
+- TU-PLAN-SVC-11 vs TU-PLAN-SVC-09: C1 varia (F→T), C2=True → resultado muda (aceite→rejeitado) — C1 afeta isoladamente ✓
+- TU-PLAN-SVC-09 vs TU-PLAN-SVC-08: C2 varia (T→F), C1=True → resultado muda (rejeitado→aceite) — C2 afeta isoladamente ✓
+
+
+---
+
+## Sprint 3
+
+### Particionamento de Equivalência — HerbService
+
+#### `list_herbs` e `get_herb`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-SVC-LIST-V1 | repositório com ervas | lista com todas as ervas devolvida |
+| Válida (limite) | EC-SVC-LIST-V2 | repositório vazio | lista vazia devolvida |
+| Válida | EC-SVC-GET-V1 | `herb_id` existente no repositório | erva correspondente devolvida |
+| Inválida | EC-SVC-GET-I1 | `herb_id` inexistente | `HerbNotFound` lançado |
+
+#### `create_herb`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-SVC-CREATE-V1 | `name` e `family` presentes e não vazios | erva criada e guardada |
+| Inválida | EC-SVC-CREATE-I1 | `name` ausente ou só espaços | `HerbValidationError` |
+| Inválida | EC-SVC-CREATE-I2 | `family` ausente ou só espaços | `HerbValidationError` |
+
+#### `import_from_csv`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-SVC-IMPORT-V1 | CSV com linhas válidas | `save_many` chamado com as válidas; relatório devolvido |
+| Inválida | EC-SVC-IMPORT-I1 | CSV vazio (sem conteúdo) | `EmptyImportFile` propagado |
+| Inválida | EC-SVC-IMPORT-I2 | CSV sem nenhuma linha válida | `save_many` não chamado |
+
+### Particionamento de Equivalência — HerbJsonRepository
+
+| Classe | ID | Método | Condição | Resultado |
+|---|---|---|---|---|
+| Válida | EC-REPO-FIND-V1 | `find_by_id` | id existente no ficheiro | dicionário da erva devolvido |
+| Inválida | EC-REPO-FIND-I1 | `find_by_id` | id inexistente | `None` |
+| Válida | EC-REPO-NAME-V1 | `find_by_name` | nome existente (case-insensitive) | dicionário da erva devolvido |
+| Inválida | EC-REPO-NAME-I1 | `find_by_name` | nome inexistente | `None` |
+| Válida (limite) | EC-REPO-FILE-I1 | `list_all` | ficheiro não existe | lista vazia, sem erro |
+| Inválida | EC-REPO-FILE-I2 | `list_all` | ficheiro existe mas vazio | lista vazia |
+| Válida | EC-REPO-FILE-V1 | `list_all` | ficheiro com dados | lista com todas as ervas |
+| Válida (limite) | EC-REPO-SAVE-V2 | `save` | repositório vazio | erva recebe `id=1` |
+| Válida | EC-REPO-SAVE-V1 | `save` | repositório com ervas | `id = max(ids) + 1` atribuído |
+| Válida | EC-REPO-MANY-V1 | `save_many` | lista com N ervas | ids sequenciais atribuídos; todas persistidas |
+| Válida (limite) | EC-REPO-MANY-V2 | `save_many` | lista vazia | repositório inalterado |
+
+### Particionamento de Equivalência — PlanService
+
+#### `list_plans` e `get_plan`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-PSVC-LIST-V1 | repositório com planos | lista completa devolvida |
+| Válida (limite) | EC-PSVC-LIST-V2 | repositório vazio | lista vazia devolvida |
+| Válida | EC-PSVC-GET-V1 | `plan_id` existente | plano correspondente devolvido |
+| Inválida | EC-PSVC-GET-I1 | `plan_id` inexistente | `PlanNotFound` lançado |
+
+#### `create_plan`
+
+| Classe | ID | Condição | Resultado |
+|---|---|---|---|
+| Válida | EC-PSVC-CREATE-V1 | dados válidos, tipo `regular` | plano validado, guardado e devolvido |
+| Inválida | EC-PSVC-CREATE-I1 | tipo de plano inválido | `PlanValidationError` propagada |
+| Inválida | EC-PSVC-CREATE-I1 | `temp_min` abaixo do mínimo | `PlanValidationError` propagada |
+| Válida | EC-PSVC-CREATE-V2 | plano `pontual` com `authorized_by` | aceite e guardado |
+| Inválida | EC-PSVC-CREATE-I2 | plano `pontual` sem `authorized_by` | `UnauthorizedPontualPlan` lançado |
+
+### Particionamento de Equivalência — PlanJsonRepository
+
+| Classe | ID | Método | Condição | Resultado |
+|---|---|---|---|---|
+| Válida (limite) | EC-PREPO-FILE-I1 | `list_all` | ficheiro não existe | lista vazia, sem erro |
+| Inválida | EC-PREPO-FILE-I2 | `list_all` | ficheiro existe mas vazio | lista vazia |
+| Válida | EC-PREPO-FILE-V1 | `list_all` | ficheiro com dados | lista com todos os planos |
+| Válida | EC-PREPO-FIND-V1 | `find_by_id` | id existente | dicionário do plano devolvido |
+| Inválida | EC-PREPO-FIND-I1 | `find_by_id` | id inexistente | `None` |
+| Válida (limite) | EC-PREPO-SAVE-V2 | `save` | repositório vazio | plano recebe `id=1` |
+| Válida | EC-PREPO-SAVE-V1 | `save` | repositório com dados | `id = max(ids) + 1` atribuído e persistido |
+
+### MC/DC — HerbService.import_from_csv
+
+Decisão em `import_from_csv`:
+
+```python
+validas = [h for h in parsed.herbs if h["status"] == "valid"]
+if validas:
+    self._repository.save_many(validas)
+```
+
+Condições atómicas:
+- **C1**: existem linhas com `status == "valid"` no CSV
+
+| Caso | C1 | Resultado | Teste |
+|---|---|---|---|
+| CSV com válidas | True | `save_many` chamado | TU-HERB-SVC-10 |
+| CSV sem válidas | False | `save_many` não chamado | TU-HERB-SVC-11 |
+
+C1 é a única condição — MC/DC satisfeita com os dois casos (True e False, cada um determinante).
+
+### MC/DC — PlanService.create_plan (autorização pontual)
+
+Decisão em `create_plan` / `validate_plan`:
+
+```python
+if plan_type == "pontual" and authorized_by is None:
+    raise UnauthorizedPontualPlan(...)
+```
+
+Condições atómicas:
+- **C1**: `type == "pontual"`
+- **C2**: `authorized_by is None`
+
+| Caso | C1 | C2 | Resultado | Teste |
+|---|---|---|---|---|
+| Regular sem auth | False | True | aceite | TU-PLAN-SVC-11 |
+| Pontual sem auth | True | True | `UnauthorizedPontualPlan` | TU-PLAN-SVC-09 |
+| Pontual com auth | True | False | aceite | TU-PLAN-SVC-08 |
+| Regular com auth | False | False | aceite | TU-PLAN-SVC-10 |
+
+**Demonstração MC/DC:**
+- TU-PLAN-SVC-11 vs TU-PLAN-SVC-09: C1 varia (F→T), C2=True → resultado muda (aceite→rejeitado) — C1 afeta isoladamente ✓
+- TU-PLAN-SVC-09 vs TU-PLAN-SVC-08: C2 varia (T→F), C1=True → resultado muda (rejeitado→aceite) — C2 afeta isoladamente ✓
