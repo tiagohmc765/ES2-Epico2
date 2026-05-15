@@ -380,3 +380,95 @@ Condições atómicas:
 **Demonstração MC/DC:**
 - TU-PLAN-SVC-11 vs TU-PLAN-SVC-09: C1 varia (F→T), C2=True → resultado muda (aceite→rejeitado) — C1 afeta isoladamente ✓
 - TU-PLAN-SVC-09 vs TU-PLAN-SVC-08: C2 varia (T→F), C1=True → resultado muda (rejeitado→aceite) — C2 afeta isoladamente ✓
+
+---
+
+## Sprint 3 — Novos Módulos: Alerts, Batches, Automation
+
+### PE — Alerts / classify_alert
+
+Classes de equivalência para o classificador de alertas:
+
+| ID | Tipo | Descrição | Resultado |
+|---|---|---|---|
+| EC-CLASS-V1 | Válida | Todos os parâmetros dentro dos limites | `None` |
+| EC-CLASS-V2 | Válida | Só temperatura fora, sensor OK | `"Aviso"` |
+| EC-CLASS-V3 | Válida | Só humidade fora, sensor OK | `"Aviso"` |
+| EC-CLASS-V4 | Válida | Ambos os parâmetros fora, sensor OK | `"Crítico"` |
+| EC-CLASS-V5 | Válida | sensor_ok=False, pelo menos um fora | `"Informativo"` |
+| EC-CLASS-I1 | Inválida | measurement sem chaves | `None` |
+
+### MC/DC — classify_alert
+
+Decisão: `alerta_gerado = (C1 OR C2) AND C3`
+- **C1**: temperatura fora dos limites
+- **C2**: humidade fora dos limites
+- **C3**: sensor_ok == True
+
+| Caso | C1 | C2 | C3 | Resultado | Teste |
+|---|---|---|---|---|---|
+| mc_01 | F | F | T | None | TU-ALERT-CLASS-16 |
+| mc_02 | T | F | T | "Aviso" | TU-ALERT-CLASS-17 |
+| mc_03 | F | T | T | "Aviso" | TU-ALERT-CLASS-18 |
+| mc_04 | T | F | F | "Informativo" | TU-ALERT-CLASS-19 |
+| mc_05 | T | T | T | "Crítico" | TU-ALERT-CLASS-20 |
+| mc_06 | F | T | F | "Informativo" | TU-ALERT-CLASS-21 |
+
+- TU-ALERT-CLASS-16 vs 17: C1 varia (F→T), C2=F, C3=T → None→Aviso (**C1 determinante** ✓)
+- TU-ALERT-CLASS-16 vs 18: C2 varia (F→T), C1=F, C3=T → None→Aviso (**C2 determinante** ✓)
+- TU-ALERT-CLASS-17 vs 19: C3 varia (T→F), C1=T, C2=F → Aviso→Informativo (**C3 determinante** ✓)
+
+### PE + VL — Alerts / resolve_alert
+
+**Justificação para "Ignorado": [10, 500] caracteres**
+
+| Ponto | Valor | Resultado |
+|---|---|---|
+| Abaixo do mínimo | 9 chars | `AlertValidationError` |
+| Mínimo válido | 10 chars | sucesso |
+| Interior | 250 chars | sucesso |
+| Máximo válido | 500 chars | sucesso |
+| Acima do máximo | 501 chars | `AlertValidationError` |
+
+### PE + VL — Batches / calculate_productivity
+
+Validações: `planned_qty > 0`, `actual_days > 0`, `harvested_qty >= 0`, `losses >= 0`
+
+| Parâmetro | Inválido (VL) | Válido (VL) |
+|---|---|---|
+| planned_qty | 0 → BatchValidationError | 1 → sucesso |
+| actual_days | 0 / None → BatchValidationError | 1 → sucesso |
+| harvested_qty | -1 → BatchValidationError | 0 → sucesso |
+| losses | -1 → BatchValidationError | 0 → sucesso |
+
+### PE + MC/DC — Batches / transition_state
+
+Decisão para concluir: `pode_concluir = C1 AND C2`
+- **C1**: new_state == "concluído"
+- **C2**: end_date is not None
+
+| Caso | C1 | C2 | Resultado | Teste |
+|---|---|---|---|---|
+| mc_01 | F | F | comprometido (outro fluxo) | TU-BATCH-SM-16 |
+| mc_02 | T | T | "concluído" ✓ | TU-BATCH-SM-17 |
+| mc_03 | T | F | BatchValidationError | TU-BATCH-SM-18 |
+| mc_04 | F | T | comprometido (C1 muda resultado) | TU-BATCH-SM-19 |
+
+### MC/DC — Automation / decide_action
+
+Decisão: `acionar = C1 AND C2 AND C3`
+- **C1**: mode == "Automático"
+- **C2**: rule_active == True
+- **C3**: measurement_triggers_rule == True
+
+| Caso | C1 | C2 | C3 | Resultado | Teste |
+|---|---|---|---|---|---|
+| mc_01 | T | T | T | "executar" | TU-AUTO-ENG-14 |
+| mc_02 | F | T | T | "sugerir" | TU-AUTO-ENG-15 |
+| mc_03 | T | F | T | None | TU-AUTO-ENG-16 |
+| mc_04 | T | T | F | None | TU-AUTO-ENG-17 |
+| mc_05..08 | — | — | — | None | TU-AUTO-ENG-18..21 |
+
+- mc_01 vs mc_02: C1 varia (T→F), C2=T, C3=T → executar→sugerir (**C1 determinante** ✓)
+- mc_01 vs mc_03: C2 varia (T→F), C1=T, C3=T → executar→None (**C2 determinante** ✓)
+- mc_01 vs mc_04: C3 varia (T→F), C1=T, C2=T → executar→None (**C3 determinante** ✓)
